@@ -1,5 +1,5 @@
 // src/components/Calculator.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { RotateCcw, Delete } from 'lucide-react';
 import Display from './Display';
@@ -9,21 +9,14 @@ export default function Calculator() {
     const [input, setInput] = useState('');
     const [result, setResult] = useState('');
 
-    const handleButtonClick = (value) => {
-        // Si el valor es un objeto (un icono de Lucide), identificamos qué acción es por su tipo
-        if (value && typeof value === 'object') {
-            if (value.type === RotateCcw) {
-                setInput('');
-                setResult('');
-                return;
-            }
-            if (value.type === Delete) {
-                setInput((prev) => prev.slice(0, -1));
-                return;
-            }
-        }
-
-        if (value === '=') {
+    // Centralizamos la lógica de procesamiento para que la usen tanto los clicks como el teclado
+    const processInput = (value) => {
+        if (value === 'C' || value === 'Clear') {
+            setInput('');
+            setResult('');
+        } else if (value === '⌫' || value === 'Backspace') {
+            setInput((prev) => prev.slice(0, -1));
+        } else if (value === '=' || value === 'Enter') {
             try {
                 if (!input) return;
                 const sanitizedInput = input.replace(/×/g, '*').replace(/÷/g, '/');
@@ -33,6 +26,7 @@ export default function Calculator() {
                 setResult('Error');
             }
         } else {
+            // Definimos los operadores permitidos en pantalla
             const operators = ['+', '-', '×', '÷', '.'];
             if (operators.includes(value) && operators.includes(input.slice(-1))) {
                 return;
@@ -41,8 +35,52 @@ export default function Calculator() {
         }
     };
 
+    // Manejador para los clicks de la interfaz visual
+    const handleButtonClick = (value) => {
+        if (value && typeof value === 'object') {
+            if (value.type === RotateCcw) return processInput('C');
+            if (value.type === Delete) return processInput('⌫');
+        }
+        processInput(value);
+    };
+
+    // Escuchador del teclado físico con useEffect
+    useEffect(() => {
+        const handleKeyDown = (event) => {
+            const { key } = event;
+
+            // Mapeamos teclas del teclado físico a los caracteres que usa nuestra app
+            if (/[0-9.]/.test(key)) {
+                processInput(key);
+            } else if (key === '+') {
+                processInput('+');
+            } else if (key === '-') {
+                processInput('-');
+            } else if (key === '*') {
+                processInput('×'); // Usamos el operador visual
+            } else if (key === '/') {
+                event.preventDefault(); // Evita que abra la búsqueda rápida en algunos navegadores
+                processInput('÷'); // Usamos el operador visual
+            } else if (key === 'Enter' || key === '=') {
+                event.preventDefault();
+                processInput('Enter');
+            } else if (key === 'Backspace') {
+                processInput('Backspace');
+            } else if (key === 'Escape') {
+                processInput('Clear');
+            }
+        };
+
+        // Añadimos el evento global al documento
+        window.addEventListener('keydown', handleKeyDown);
+
+        // CRUCIAL: Limpiamos el evento cuando el componente se desmonte para evitar fugas de memoria
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [input]); // Escuchamos los cambios en 'input' para que la función capture el estado actualizado
+
     return (
-        // Agregamos una animación de entrada suave (Fade-in y Slide-up) para la calculadora entera
         <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
@@ -52,7 +90,6 @@ export default function Calculator() {
             <Display input={input} result={result} />
 
             <div className="grid grid-cols-4 gap-3">
-                {/* Usamos los iconos de Lucide pasándolos como componentes React en la propiedad value */}
                 <Button value={<RotateCcw size={20} />} onClick={handleButtonClick} variant="action" />
                 <Button value={<Delete size={20} />} onClick={handleButtonClick} variant="action" />
                 <Button value="÷" onClick={handleButtonClick} variant="operator" />
